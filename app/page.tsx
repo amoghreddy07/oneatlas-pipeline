@@ -22,6 +22,18 @@ export default function Home() {
   const [errors, setErrors] = useState<string[]>([]);
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  async function fetchJobWithRetry(id: string): Promise<Job | null> {
+    for (let i = 0; i < 8; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      try {
+        const jobRes = await fetch(`/api/generate/${id}`);
+        const jobData = await jobRes.json();
+        if (jobData?.appSpec) return jobData;
+      } catch {}
+    }
+    return null;
+  }
+
   async function handleGenerate() {
     if (!prompt.trim()) return;
     setLoading(true);
@@ -62,34 +74,25 @@ export default function Home() {
 
     es.addEventListener('generation_complete', async () => {
       es.close();
-      // Force all completed stages to show complete
       setStages({
         intent_extraction: 'complete',
         schema_generation: 'complete',
         app_spec_generation: 'complete',
       });
-      // Small delay to ensure job store has updated
-      await new Promise(r => setTimeout(r, 800));
-      const jobRes = await fetch(`/api/generate/${id}`);
-      const jobData = await jobRes.json();
-      setJob(jobData);
+      const jobData = await fetchJobWithRetry(id);
+      if (jobData) setJob(jobData);
       setLoading(false);
     });
 
     es.onerror = async () => {
       es.close();
-      // Even on error, try to fetch final job state
-      await new Promise(r => setTimeout(r, 500));
-      const jobRes = await fetch(`/api/generate/${id}`);
-      const jobData = await jobRes.json();
-      if (jobData.appSpec) {
-        setStages({
-          intent_extraction: 'complete',
-          schema_generation: 'complete',
-          app_spec_generation: 'complete',
-        });
-        setJob(jobData);
-      }
+      setStages({
+        intent_extraction: 'complete',
+        schema_generation: 'complete',
+        app_spec_generation: 'complete',
+      });
+      const jobData = await fetchJobWithRetry(id);
+      if (jobData) setJob(jobData);
       setLoading(false);
     };
   }
@@ -182,7 +185,6 @@ export default function Home() {
             </div>
 
             <div className="p-4">
-              {/* Entities Tab */}
               {activeTab === 'entities' && job.dataSchema && (
                 <div className="space-y-4">
                   {job.dataSchema.entities.map((entity, i) => (
@@ -201,7 +203,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Pages Tab */}
               {activeTab === 'pages' && (
                 <table className="w-full text-xs">
                   <thead>
@@ -227,7 +228,6 @@ export default function Home() {
                 </table>
               )}
 
-              {/* Endpoints Tab */}
               {activeTab === 'endpoints' && (
                 <table className="w-full text-xs">
                   <thead>
@@ -260,7 +260,6 @@ export default function Home() {
                 </table>
               )}
 
-              {/* Integrations Tab */}
               {activeTab === 'integrations' && (
                 <div className="space-y-2">
                   {job.appSpec.integrationHooks.length === 0 ? (
@@ -278,7 +277,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Workflows Tab */}
               {activeTab === 'workflows' && (
                 <div className="space-y-3">
                   {job.appSpec.workflowStubs.length === 0 ? (
@@ -298,7 +296,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Errors Tab */}
               {activeTab === 'errors' && (
                 <div className="space-y-2">
                   {job.stages.map((stage, i) => (
