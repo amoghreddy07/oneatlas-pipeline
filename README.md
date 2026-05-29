@@ -94,4 +94,8 @@ All routing is config-driven in `lib/modelConfig.ts`. No model names are hardcod
 
 See `evaluation/results.json` for full results across all 12 prompts.
 
+<<<<<<< HEAD
 **Summary:** 5/7 standard prompts confirmed successful. Pipeline handles edge cases gracefully with documented assumptions. Most common failure: provider quota exhaustion during bulk evaluation (not a pipeline bug — cascade chain correctly attempts all providers before failing).
+=======
+**Summary:** 5/7 standard prompts confirmed successful. Pipeline handles edge cases gracefully with documented assumptions. Most common failure: provider quota exhaustion during bulk evaluation (not a pipeline bug — cascade chain correctly attempts all providers before failing).
+>>>>>>> 3c63ed2 (fix: use callChain in repairEngine)

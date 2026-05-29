@@ -1,6 +1,6 @@
 import { RepairLog } from '@/types';
 import { ROUTING_CONFIG } from '../modelConfig';
-import { callModel, cleanJSON } from '../providers/gateway';
+import { callChain, cleanJSON } from '../providers/gateway';
 import { ValidationError } from '../validation/validator';
 
 export interface RepairResult {
@@ -12,12 +12,10 @@ export interface RepairResult {
 // Strategy 1: Structural repair - fix malformed JSON
 function structuralRepair(raw: string): { success: boolean; data: any } {
   try {
-    // Try cleaning markdown fences
     const clean = cleanJSON(raw);
     const data = JSON.parse(clean);
     return { success: true, data };
   } catch {
-    // Try extracting JSON from response
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
@@ -39,8 +37,6 @@ function fieldRepair(data: any, errors: ValidationError[]): { success: boolean; 
   errors.forEach(error => {
     if (error.type === 'missing_field') {
       const field = error.field;
-
-      // Apply defaults for common missing fields
       if (field === 'appType') { fixed.appType = 'custom'; repaired = true; }
       if (field === 'features') { fixed.features = []; repaired = true; }
       if (field === 'entities') { fixed.entities = []; repaired = true; }
@@ -52,7 +48,6 @@ function fieldRepair(data: any, errors: ValidationError[]): { success: boolean; 
       if (field === 'integrationHooks') { fixed.integrationHooks = []; repaired = true; }
       if (field === 'workflowStubs') { fixed.workflowStubs = []; repaired = true; }
 
-      // Fix missing tenantId in entities
       if (field.includes('tenantId') && fixed.entities) {
         fixed.entities = fixed.entities.map((entity: any) => {
           const hasTenantId = entity.fields?.some((f: any) => f.name === 'tenantId');
@@ -79,7 +74,6 @@ function consistencyRepair(data: any, errors: ValidationError[]): { success: boo
 
   errors.forEach(error => {
     if (error.type === 'inconsistency') {
-      // Fix pages with no API endpoint
       if (error.field.startsWith('pages[')) {
         const pageIndex = parseInt(error.field.match(/\d+/)?.[0] || '0');
         const page = fixed.pages?.[pageIndex];
@@ -100,7 +94,6 @@ function consistencyRepair(data: any, errors: ValidationError[]): { success: boo
       }
     }
 
-    // Fix broken entity references in workflowStubs
     if (error.type === 'broken_reference' && error.field.startsWith('workflowStubs')) {
       const entityNames = fixed.entities?.map((e: any) => e.name) || [];
       fixed.workflowStubs = fixed.workflowStubs?.filter((stub: any) =>
@@ -163,7 +156,7 @@ Errors: ${JSON.stringify(errors)}
 Current output: ${JSON.stringify(data)}
 Return ONLY valid fixed JSON.`;
 
-    const response = await callModel(routing.primary, 'You are a JSON repair engine. Fix the output and return only valid JSON.', repairPrompt);
+    const response = await callChain(routing, 'You are a JSON repair engine. Fix the output and return only valid JSON.', repairPrompt);
     const clean = cleanJSON(response.content);
     const fixed = JSON.parse(clean);
 
